@@ -1,3 +1,5 @@
+import sys
+import json
 import requests
 import datetime
 from tinydb import TinyDB, Query
@@ -17,7 +19,7 @@ def getContent():
         title = entry.split("class=\"storylink\"")[1].split(">")[1].split("</a")[0]
 
         line = rank + title + link
-        lines.insert(0, (rank, title, link))
+        lines.insert(0, json.dumps({'currentRank': rank, 'title': title, 'link': link}))
         maxLength = max(maxLength, len(line))
     
     lines.reverse()
@@ -31,7 +33,7 @@ def checkContent(lines, logFilePath):
         f.close()
         
 # printing the top-most results
-def printContent(lines):
+def printContent(lines, load = False):
     class bcolors:
         pink = '\033[95m'
         blue = '\033[94m'
@@ -41,31 +43,48 @@ def printContent(lines):
         unbold = '\033[0m'
         bold = '\033[1m'
         underline = '\033[4m'
-    for line in lines:
-        print(bcolors.bold + bcolors.red + line[0] + ". " + bcolors.orange + line[1] + ": " + bcolors.pink + line[2])
+
+    if(load):
+        for line in lines:
+            line = json.loads(line)
+            print(bcolors.bold + bcolors.red + line['currentRank'] + ". " + bcolors.orange + line['title'] + ": " + bcolors.pink + line['link'])
+    else:
+        for line in lines:
+            print(bcolors.bold + bcolors.red + str(line['currentRank']) + ". " + bcolors.orange + line['title'] + ": " + bcolors.pink + line['link'])
 
 # checking no collisions
 def seenBefore(line, db):
-    return db.count((Query().title == line[1]) & (Query().link == line[2])) != 0
+    return db.count((Query().title == line['title']) & (Query().link == line['link'])) != 0
 
 # adding to past results
-def storeContent(lines, dbFilePath):
-    db = TinyDB(dbFilePath)
-
+def storeContent(lines, db):
     for line in lines:
+        line = json.loads(line)
         if(not seenBefore(line, db)):
-            db.insert({'currentRank': int(line[0]), 'title': line[1], 'link': line[2]})
+            db.insert({'currentRank': int(line['currentRank']), 'title': line['title'], 'link': line['link']})
 
 # put everything together
-def main():
+def main(whatToShow = 0):
     logFilePath = "app.log"
     dbFilePath = "db.json"
+
+    db = TinyDB(dbFilePath)
     (lines, maxLength) = getContent()
 
     checkContent(lines, logFilePath)
-    printContent(lines)
+    storeContent(lines, db)
 
-    storeContent(lines, dbFilePath)
+    if(whatToShow == 0):
+        printContent(lines, True)
+    elif(whatToShow == 1):
+        printContent(db.all())
 
 if __name__ == "__main__":
-    main()
+    if(len(sys.argv) > 1):
+        main(int(sys.argv[1]))
+    else:
+        print("+------------------------------------------------+")
+        print("| Pass 0 or leave empty for most recent results. |")
+        print("| Pass 1 for all scraped results.                |")
+        print("+------------------------------------------------+")
+        main()
