@@ -19,7 +19,7 @@ def getContent():
         title = entry.split("class=\"storylink\"")[1].split(">")[1].split("</a")[0]
 
         line = rank + title + link
-        lines.insert(0, json.dumps({'currentRank': rank, 'title': title, 'link': link}))
+        lines.insert(0, json.dumps({'timestamp': str(datetime.datetime.utcnow()), 'currentRank': rank, 'title': title, 'link': link}))
         maxLength = max(maxLength, len(line))
     
     lines.reverse()
@@ -46,11 +46,46 @@ def printContent(lines, load = False):
 
     if(load):
         for line in lines:
+            newlineRequired = False
             line = json.loads(line)
-            print(bcolors.bold + bcolors.red + line['currentRank'] + ". " + bcolors.orange + line['title'] + ": " + bcolors.pink + line['link'])
+            try:
+                print(bcolors.bold + bcolors.red + line['currentRank'] + ". ", end="")
+                newlineRequired = True
+            except:
+                pass
+            try:
+                print(bcolors.bold + bcolors.orange + line['title'] + ": ", end="")
+                newlineRequired = True
+            except:
+                pass
+            try:
+                print(bcolors.bold + bcolors.pink + line['link'], end="")
+                newlineRequired = True
+            except:
+                pass
+            if(newlineRequired):
+                print()
     else:
         for line in lines:
-            print(bcolors.bold + bcolors.red + str(line['currentRank']) + ". " + bcolors.orange + line['title'] + ": " + bcolors.pink + line['link'])
+            newlineRequired = False
+            try:
+                print(bcolors.bold + bcolors.red + line['timestamp'] + " ", end = "")
+                newlineRequired = True
+            except:
+                pass
+            try:
+                print(bcolors.bold + bcolors.orange + line['title'] + ": ", end = "")
+                newlineRequired = True
+            except:
+                pass
+            try:
+                print(bcolors.bold + bcolors.pink + line['link'], end = "")
+                newlineRequired = True
+            except:
+                pass
+            if(newlineRequired):
+                print()
+            
 
 # checking no collisions
 def seenBefore(line, db):
@@ -61,7 +96,7 @@ def storeContent(lines, db):
     for line in lines:
         line = json.loads(line)
         if(not seenBefore(line, db)):
-            db.insert({'currentRank': int(line['currentRank']), 'title': line['title'], 'link': line['link']})
+            db.insert({'timestamp': str(datetime.datetime.utcnow()), 'currentRank': int(line['currentRank']), 'title': line['title'], 'link': line['link']})
 
 # put everything together
 def main(whatToShow = 0):
@@ -78,13 +113,17 @@ def main(whatToShow = 0):
         printContent(lines, True)
     elif(whatToShow == 1):
         printContent(db.all())
+    elif(whatToShow == 2):
+        pass
 
 if __name__ == "__main__":
     if(len(sys.argv) > 1):
         main(int(sys.argv[1]))
     else:
+        main()
+        print()
         print("+------------------------------------------------+")
         print("| Pass 0 or leave empty for most recent results. |")
         print("| Pass 1 for all scraped results.                |")
+        print("| Pass 2 to scrape new results.                  |")
         print("+------------------------------------------------+")
-        main()
