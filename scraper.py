@@ -1,5 +1,6 @@
 import requests
 import datetime
+from tinydb import TinyDB, Query
 
 # getting the latest content
 def getContent():
@@ -43,20 +44,28 @@ def printContent(lines):
     for line in lines:
         print(bcolors.bold + bcolors.red + line[0] + ". " + bcolors.orange + line[1] + ": " + bcolors.pink + line[2])
 
+# checking no collisions
+def seenBefore(line, db):
+    return db.count((Query().title == line[1]) & (Query().link == line[2])) != 0
+
 # adding to past results
-def storeContent(lines):
+def storeContent(lines, dbFilePath):
+    db = TinyDB(dbFilePath)
+
     for line in lines:
-        if(not seenBefore(line)):
-            addCurrent(line)
+        if(not seenBefore(line, db)):
+            db.insert({'currentRank': int(line[0]), 'title': line[1], 'link': line[2]})
 
 # put everything together
 def main():
     logFilePath = "app.log"
+    dbFilePath = "db.json"
     (lines, maxLength) = getContent()
 
     checkContent(lines, logFilePath)
     printContent(lines)
-    #storeContent(lines, storeFilePath)
+
+    storeContent(lines, dbFilePath)
 
 if __name__ == "__main__":
     main()
