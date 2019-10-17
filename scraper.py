@@ -1,3 +1,4 @@
+import os
 import sys
 import json
 import requests
@@ -99,10 +100,7 @@ def storeContent(lines, db):
             db.insert({'timestamp': str(datetime.datetime.utcnow()), 'currentRank': int(line['currentRank']), 'title': line['title'], 'link': line['link']})
 
 # put everything together
-def main(whatToShow = 0):
-    logFilePath = "app.log"
-    dbFilePath = "db.json"
-
+def main(whatToShow = 0, logFilePath = os.path.realpath(__file__) + "app.log", dbFilePath = os.path.realpath(__file__) + "db.json"):
     db = TinyDB(dbFilePath)
     (lines, maxLength) = getContent()
 
@@ -118,7 +116,7 @@ def main(whatToShow = 0):
 
 if __name__ == "__main__":
     if(len(sys.argv) > 1):
-        main(int(sys.argv[1]))
+        main(int(sys.argv[1]), sys.argv[2], sys.argv[3])
     else:
         main()
         print()
@@ -126,4 +124,6 @@ if __name__ == "__main__":
         print("| Pass 0 or leave empty for most recent results. |")
         print("| Pass 1 for all scraped results.                |")
         print("| Pass 2 to scrape new results.                  |")
+        print("| Also pass the log and the db files.            |")
+        print("| e.g. $ python3 scraper.py 1 app.log db.json    |")
         print("+------------------------------------------------+")
