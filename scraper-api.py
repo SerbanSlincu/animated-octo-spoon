@@ -24,12 +24,12 @@ def printContent(source):
     for story in source:
         newlineRequired = False
         try:
-            print(bcolors.bold + bcolors.blue + story['id'] + " ", end = "")
+            print(bcolors.bold + bcolors.blue + 'id:' + story['id'] + " ", end = "")
             newlineRequired = True
         except:
             pass
         try:
-            print(bcolors.bold + bcolors.red + story['timestamp'] + " ", end = "")
+            print(bcolors.bold + bcolors.red + 'time:' + story['timestamp'] + " ", end = "")
             newlineRequired = True
         except:
             pass
