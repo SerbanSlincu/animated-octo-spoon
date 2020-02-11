@@ -9,7 +9,9 @@ from tinydb import TinyDB, Query
 def getContent():
     content = requests.get("https://news.ycombinator.com/").text
     entries = content.split("\n")
-    lines = []; maxLength = 0
+
+    lines = []
+    maxLength = 0
 
     for entry in entries:
         if("<span class=\"rank\">" not in entry):
@@ -20,10 +22,9 @@ def getContent():
         title = entry.split("class=\"storylink\"")[1].split(">")[1].split("</a")[0]
 
         line = rank + title + link
-        lines.insert(0, json.dumps({'timestamp': str(datetime.datetime.utcnow()), 'currentRank': rank, 'title': title, 'link': link}))
+        lines.append(json.dumps({'timestamp': str(datetime.datetime.utcnow()), 'currentRank': rank, 'title': title, 'link': link}))
         maxLength = max(maxLength, len(line))
     
-    lines.reverse()
     return (lines, maxLength)
 
 # printing the top-most results
@@ -96,11 +97,15 @@ def seenBefore(line, db):
 def storeContent(lines, db):
     for line in lines:
         line = json.loads(line)
-        if(not seenBefore(line, db)):
-            db.insert({'timestamp': str(datetime.datetime.utcnow()), 'currentRank': int(line['currentRank']), 'title': line['title'], 'link': line['link']})
+
+        # this is not relevant as articles do not
+        # tend to come up again unless really relevant
+        # print(db.count((Query().title != line['title']) & (Query().link != line['link'])))
+        # if(not seenBefore(line, db)):
+        db.insert({'timestamp': str(datetime.datetime.utcnow()), 'currentRank': int(line['currentRank']), 'title': line['title'], 'link': line['link']})
 
 # put everything together
-def main(whatToShow = 0, logFilePath = os.path.realpath(__file__) + "app.log", dbFilePath = os.path.realpath(__file__) + "db.json"):
+def main(whatToShow = 0, logFilePath = os.path.dirname(os.path.realpath(__file__)) + "/app.log", dbFilePath = os.path.dirname(os.path.realpath(__file__)) + "/db.json"):
     db = TinyDB(dbFilePath)
     (lines, maxLength) = getContent()
 
