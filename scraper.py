@@ -11,7 +11,6 @@ def getContent():
     entries = content.split("\n")
 
     lines = []
-    maxLength = 0
 
     for entry in entries:
         if("<span class=\"rank\">" not in entry):
@@ -23,9 +22,8 @@ def getContent():
 
         line = rank + title + link
         lines.append(json.dumps({'timestamp': str(datetime.datetime.utcnow()), 'currentRank': rank, 'title': title, 'link': link}))
-        maxLength = max(maxLength, len(line))
     
-    return (lines, maxLength)
+    return lines
 
 # printing the top-most results
 def checkContent(lines, logFilePath):
@@ -35,7 +33,59 @@ def checkContent(lines, logFilePath):
         f.close()
         
 # printing the top-most results
-def printContent(lines, load = False):
+def printContent(source, traits):
+    for story in source:
+        # if story has any field at all
+        newlineRequired = False
+
+        # print the specific field of the story
+        # with all the fields on the same line
+        # some stories may not have some fields
+        for (colour, name, field) in traits:
+            try:
+                print(colour + name + story[field] + ' ', end='')
+                newlineRequired = True
+            except:
+                pass
+        if(newlineRequired):
+            print()
+
+# checking no collisions
+def seenBefore(line, db):
+    return db.count((Query().title == line['title']) & (Query().link == line['link'])) != 0
+
+# adding to past results
+def storeContent(lines, db, traits):
+    # use for printing later
+    top = []
+
+    for line in lines:
+        line = json.loads(line)
+
+        # some stories do not have some properties
+        reducedStory = {}
+        for (colour, field, myField) in traits:
+            try:
+                reducedStory[myField] = str(line[myField])
+            except:
+                reducedStory[myField] = "not existent"
+        reducedStory['timestamp'] = str(datetime.datetime.utcnow())
+
+        # this is not relevant as articles do not
+        # tend to come up again unless really relevant
+        # however it does protect against articles staying
+        # in the top for longer than 4 hours
+        if(not seenBefore(line, db)):
+            db.insert(reducedStory)
+
+        # print for top results whether it appeared or not
+        top.append(reducedStory)
+
+    return top
+
+# put everything together
+def main(whatToShow = 0, logFilePath = os.path.dirname(os.path.realpath(__file__)) + "/app.log", dbFilePath = os.path.dirname(os.path.realpath(__file__)) + "/db.json"):
+    db = TinyDB(dbFilePath)
     class bcolors:
         pink = '\033[95m'
         blue = '\033[94m'
@@ -46,78 +96,23 @@ def printContent(lines, load = False):
         bold = '\033[1m'
         underline = '\033[4m'
 
-    if(load):
-        for line in lines:
-            newlineRequired = False
-            line = json.loads(line)
-            try:
-                print(bcolors.bold + bcolors.red + line['currentRank'] + ". ", end="")
-                newlineRequired = True
-            except:
-                pass
-            try:
-                print(bcolors.bold + bcolors.orange + line['title'] + ": ", end="")
-                newlineRequired = True
-            except:
-                pass
-            try:
-                print(bcolors.bold + bcolors.pink + line['link'], end="")
-                newlineRequired = True
-            except:
-                pass
-            if(newlineRequired):
-                print()
+    traits = []
+    traits.append((bcolors.bold + bcolors.blue, '', 'currentRank'))
+    traits.append((bcolors.bold + bcolors.red, '', 'timestamp'))
+    traits.append((bcolors.bold + bcolors.orange, 'title: ', 'title'))
+    traits.append((bcolors.bold + bcolors.pink, 'url: ', 'link'))
+
+    if(whatToShow == 1):
+        printContent(db.all(), traits)
     else:
-        for line in lines:
-            newlineRequired = False
-            try:
-                print(bcolors.bold + bcolors.red + line['timestamp'] + " ", end = "")
-                newlineRequired = True
-            except:
-                pass
-            try:
-                print(bcolors.bold + bcolors.orange + line['title'] + ": ", end = "")
-                newlineRequired = True
-            except:
-                pass
-            try:
-                print(bcolors.bold + bcolors.pink + line['link'], end = "")
-                newlineRequired = True
-            except:
-                pass
-            if(newlineRequired):
-                print()
-            
+        lines = getContent()
+        checkContent(lines, logFilePath)
+        top = storeContent(lines, db, traits)
 
-# checking no collisions
-def seenBefore(line, db):
-    return db.count((Query().title == line['title']) & (Query().link == line['link'])) != 0
-
-# adding to past results
-def storeContent(lines, db):
-    for line in lines:
-        line = json.loads(line)
-
-        # this is not relevant as articles do not
-        # tend to come up again unless really relevant
-        # print(db.count((Query().title != line['title']) & (Query().link != line['link'])))
-        # if(not seenBefore(line, db)):
-        db.insert({'timestamp': str(datetime.datetime.utcnow()), 'currentRank': int(line['currentRank']), 'title': line['title'], 'link': line['link']})
-
-# put everything together
-def main(whatToShow = 0, logFilePath = os.path.dirname(os.path.realpath(__file__)) + "/app.log", dbFilePath = os.path.dirname(os.path.realpath(__file__)) + "/db.json"):
-    db = TinyDB(dbFilePath)
-    (lines, maxLength) = getContent()
-
-    checkContent(lines, logFilePath)
-    storeContent(lines, db)
-
-    if(whatToShow == 0):
-        printContent(lines, True)
-    elif(whatToShow == 1):
-        printContent(db.all())
-    elif(whatToShow == 2):
-        pass
+        if(whatToShow == 0):
+            printContent(top, traits)
+        elif(whatToShow == 2):
+            pass
 
 if __name__ == "__main__":
     if(len(sys.argv) > 1):

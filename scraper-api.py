@@ -10,39 +10,21 @@ def getContent():
     return ids[:30]
 
 # printing the top-most results
-def printContent(source):
-    class bcolors:
-        pink = '\033[95m'
-        blue = '\033[94m'
-        green = '\033[92m'
-        orange = '\033[93m'
-        red = '\033[91m'
-        unbold = '\033[0m'
-        bold = '\033[1m'
-        underline = '\033[4m'
-
+def printContent(source, traits):
     for story in source:
+        # if story has any field at all
         newlineRequired = False
-        try:
-            print(bcolors.bold + bcolors.blue + 'id:' + story['id'] + " ", end = "")
-            newlineRequired = True
-        except:
-            pass
-        try:
-            print(bcolors.bold + bcolors.red + 'time:' + story['timestamp'] + " ", end = "")
-            newlineRequired = True
-        except:
-            pass
-        try:
-            print(bcolors.bold + bcolors.orange + story['title'] + ": ", end="")
-            newlineRequired = True
-        except:
-            pass
-        try:
-            print(bcolors.bold + bcolors.pink + story['link'], end="")
-            newlineRequired = True
-        except:
-            pass
+
+        # print the specific field of the story
+        # with all the fields on the same line
+        # some stories may not have some fields
+        for (colour, name, field) in traits:
+            try:
+                print(colour + name + ': ' + story[field] + ' ', end='')
+                newlineRequired = True
+            except:
+                pass
+
         if(newlineRequired):
             print()
 
@@ -51,21 +33,25 @@ def seenBefore(story, db):
     return db.count((Query().title == story['title']) & (Query().link == story['link'])) != 0
 
 # adding to past results
-def storeContent(ids, db, printing = False):
+def storeContent(ids, db, traits):
     # use for printing later
     top = []
 
     for id in ids:
         story = requests.get("https://hacker-news.firebaseio.com/v0/item/" + str(id) + ".json?print=pretty").json()
-        reducedStory = {'id': str(story['id']), 'timestamp': str(story['time']), 'title': story['title'], 'link': story['url']}
-        if(printing):
-            printContent([reducedStory])
+        
+        # some stories do not have urls
+        reducedStory = {}
+        for (colour, field, myField) in traits:
+            try:
+                reducedStory[myField] = str(story[field])
+            except:
+                reducedStory[myField] = "not existent"
 
         # this is not really relevant as articles do not
         # tend to come up again unless really relevant
         # however it does protect against articles staying
         # in the top for longer than 4 hours
-        # print(db.count((Query().title != story['title']) & (Query().link != story['url'])))
         if(not seenBefore(reducedStory, db)):
             db.insert(reducedStory)
 
@@ -77,18 +63,33 @@ def storeContent(ids, db, printing = False):
 # put everything together
 def main(whatToShow = 0, logFilePath = os.path.dirname(os.path.realpath(__file__)) + "/app.log", dbFilePath = os.path.dirname(os.path.realpath(__file__)) + "/db.json"):
     db = TinyDB(dbFilePath)
+    class bcolors:
+        pink = '\033[95m'
+        blue = '\033[94m'
+        green = '\033[92m'
+        orange = '\033[93m'
+        red = '\033[91m'
+        unbold = '\033[0m'
+        bold = '\033[1m'
+        underline = '\033[4m'
+
+    traits = []
+    traits.append((bcolors.bold + bcolors.blue, 'id', 'id'))
+    traits.append((bcolors.bold + bcolors.red, 'time', 'timestamp'))
+    traits.append((bcolors.bold + bcolors.orange, 'title', 'title'))
+    traits.append((bcolors.bold + bcolors.pink, 'url', 'link'))
 
     if(whatToShow == 0):
         ids = getContent()
-        top = storeContent(ids, db, printing = True)
-        # printContent(top)
+        top = storeContent(ids, db, traits)
+        printContent(top, traits)
 
     elif(whatToShow == 1):
-        printContent(db.all())
+        printContent(db.all(), traits)
 
     elif(whatToShow == 2):
         ids = getContent()
-        top = storeContent(ids, db)
+        storeContent(ids, db, traits)
 
 if __name__ == "__main__":
     if(len(sys.argv) > 1):
