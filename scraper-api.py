@@ -5,14 +5,32 @@ import requests
 from tinydb import TinyDB, Query
 
 # getting the latest content
-def getContent():
+def getContent(traits):
+    stories = []
+
     ids = requests.get("https://hacker-news.firebaseio.com/v0/topstories.json?print=pretty").json()
-    return ids[:30]
+    for index in range(0, 30):
+        id = ids[index]
+        story = requests.get("https://hacker-news.firebaseio.com/v0/item/" + str(id) + ".json?print=pretty").json()
+        story['currentRank'] = index + 1
+        
+        # some stories do not have urls
+        reducedStory = {}
+        for (colour, field, myField) in traits:
+            try:
+                reducedStory[myField] = str(story[field])
+            except:
+                reducedStory[myField] = "not existent"
+
+        stories.append(reducedStory)
+
+    return stories
 
 # printing the top-most results
-def printContent(source, traits):
-    for story in source:
-        # if story has any field at all
+def printContent(stories, traits):
+    for story in stories:
+        # some stories may not have any fields
+        # so no point in new line
         newlineRequired = False
 
         # print the specific field of the story
@@ -33,32 +51,14 @@ def seenBefore(story, db):
     return db.count((Query().title == story['title']) & (Query().link == story['link'])) != 0
 
 # adding to past results
-def storeContent(ids, db, traits):
-    # use for printing later
-    top = []
-
-    for id in ids:
-        story = requests.get("https://hacker-news.firebaseio.com/v0/item/" + str(id) + ".json?print=pretty").json()
-        
-        # some stories do not have urls
-        reducedStory = {}
-        for (colour, field, myField) in traits:
-            try:
-                reducedStory[myField] = str(story[field])
-            except:
-                reducedStory[myField] = "not existent"
-
+def storeContent(stories, db):
+    for story in stories:
         # this is not really relevant as articles do not
         # tend to come up again unless really relevant
         # however it does protect against articles staying
         # in the top for longer than 4 hours
-        if(not seenBefore(reducedStory, db)):
-            db.insert(reducedStory)
-
-        # print for top results whether it appeared or not
-        top.append(reducedStory)
-
-    return top
+        if(not seenBefore(story, db)):
+            db.insert(story)
 
 # put everything together
 def main(whatToShow = 0, logFilePath = os.path.dirname(os.path.realpath(__file__)) + "/app.log", dbFilePath = os.path.dirname(os.path.realpath(__file__)) + "/db.json"):
@@ -74,22 +74,23 @@ def main(whatToShow = 0, logFilePath = os.path.dirname(os.path.realpath(__file__
         underline = '\033[4m'
 
     traits = []
-    traits.append((bcolors.bold + bcolors.blue, 'id', 'id'))
+    traits.append((bcolors.bold + bcolors.green, 'id', 'id'))
+    traits.append((bcolors.bold + bcolors.blue, 'currentRank', 'currentRank'))
     traits.append((bcolors.bold + bcolors.red, 'time', 'timestamp'))
     traits.append((bcolors.bold + bcolors.orange, 'title', 'title'))
     traits.append((bcolors.bold + bcolors.pink, 'url', 'link'))
 
     if(whatToShow == 0):
-        ids = getContent()
-        top = storeContent(ids, db, traits)
-        printContent(top, traits)
+        stories = getContent(traits)
+        storeContent(stories, db)
+        printContent(stories, traits)
 
     elif(whatToShow == 1):
         printContent(db.all(), traits)
 
     elif(whatToShow == 2):
-        ids = getContent()
-        storeContent(ids, db, traits)
+        stories = getContent(traits)
+        storeContent(stories, db)
 
 if __name__ == "__main__":
     if(len(sys.argv) > 1):

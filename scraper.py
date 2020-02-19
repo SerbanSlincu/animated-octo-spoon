@@ -6,11 +6,11 @@ import datetime
 from tinydb import TinyDB, Query
 
 # getting the latest content
-def getContent():
+def getContent(traits):
     content = requests.get("https://news.ycombinator.com/").text
     entries = content.split("\n")
 
-    lines = []
+    stories = []
 
     for entry in entries:
         if("<span class=\"rank\">" not in entry):
@@ -19,23 +19,32 @@ def getContent():
         rank = entry.split("class=\"rank\"")[1].split(">")[1].split(".")[0]
         link = entry.split("td class=\"title\"")[1].split(">")[1].split("<a href=\"")[1].split("\"")[0]
         title = entry.split("class=\"storylink\"")[1].split(">")[1].split("</a")[0]
+        story = {'timestamp': str(datetime.datetime.utcnow()), 'currentRank': rank, 'title': title, 'link': link}
 
-        line = rank + title + link
-        lines.append(json.dumps({'timestamp': str(datetime.datetime.utcnow()), 'currentRank': rank, 'title': title, 'link': link}))
+        # some stories may not have some properties defined in traits
+        reducedStory = {}
+        for (colour, field, myField) in traits:
+            try:
+                reducedStory[myField] = str(story[myField])
+            except:
+                reducedStory[myField] = "not existent"
+
+        stories.append(reducedStory)
     
-    return lines
+    return stories
 
-# printing the top-most results
-def checkContent(lines, logFilePath):
-    if(len(lines) != 30):
+# checking the top-most results and the HTML content has not changed
+def checkContent(stories, logFilePath):
+    if(len(stories) != 30):
         f = open(logFilePath, "a")
-        f.write(str(datetime.datetime.utcnow()) + " -- WARNING -- Less than 30 articles read! Only {} scraped.\n".format(len(lines)))
+        f.write(str(datetime.datetime.utcnow()) + " -- WARNING -- Less than 30 articles read! Only {} scraped.\n".format(len(stories)))
         f.close()
         
 # printing the top-most results
-def printContent(source, traits):
-    for story in source:
-        # if story has any field at all
+def printContent(stories, traits):
+    for story in stories:
+        # story may not have any fields
+        # so no point in printing new line
         newlineRequired = False
 
         # print the specific field of the story
@@ -51,37 +60,18 @@ def printContent(source, traits):
             print()
 
 # checking no collisions
-def seenBefore(line, db):
-    return db.count((Query().title == line['title']) & (Query().link == line['link'])) != 0
+def seenBefore(story, db):
+    return db.count((Query().title == story['title']) & (Query().link == story['link'])) != 0
 
 # adding to past results
-def storeContent(lines, db, traits):
-    # use for printing later
-    top = []
-
-    for line in lines:
-        line = json.loads(line)
-
-        # some stories do not have some properties
-        reducedStory = {}
-        for (colour, field, myField) in traits:
-            try:
-                reducedStory[myField] = str(line[myField])
-            except:
-                reducedStory[myField] = "not existent"
-        reducedStory['timestamp'] = str(datetime.datetime.utcnow())
-
+def storeContent(stories, db):
+    for story in stories:
         # this is not relevant as articles do not
         # tend to come up again unless really relevant
         # however it does protect against articles staying
         # in the top for longer than 4 hours
-        if(not seenBefore(line, db)):
-            db.insert(reducedStory)
-
-        # print for top results whether it appeared or not
-        top.append(reducedStory)
-
-    return top
+        if(not seenBefore(story, db)):
+            db.insert(story)
 
 # put everything together
 def main(whatToShow = 0, logFilePath = os.path.dirname(os.path.realpath(__file__)) + "/app.log", dbFilePath = os.path.dirname(os.path.realpath(__file__)) + "/db.json"):
@@ -105,12 +95,12 @@ def main(whatToShow = 0, logFilePath = os.path.dirname(os.path.realpath(__file__
     if(whatToShow == 1):
         printContent(db.all(), traits)
     else:
-        lines = getContent()
-        checkContent(lines, logFilePath)
-        top = storeContent(lines, db, traits)
+        stories = getContent(traits)
+        checkContent(stories, logFilePath)
+        storeContent(stories, db)
 
         if(whatToShow == 0):
-            printContent(top, traits)
+            printContent(stories, traits)
         elif(whatToShow == 2):
             pass
 
